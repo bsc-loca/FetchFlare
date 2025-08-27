@@ -1,8 +1,8 @@
-Golnaz Korkian:       golnaz.korkian@bsc.es
-Neiel Leyva:          neiel.leyva@bsc.es
-Arnau Bigas:          arnau.bigas@bsc.es
-Noelia Oliete-Escuín: noelia.oliete@bsc.es
-Abbas Haghi:          abbas.hagh@bsc.es
-Alireza Monemi:       alireza.monemi@bsc.es
-César Fuguet:         cesar.fuguet@univ-grenoble-alpes.fr
-Lluc Alvarez:         lluc.alvarez@bsc.es
+- Golnaz Korkian:       golnaz.korkian@bsc.es
+- Neiel Leyva:          neiel.leyva@bsc.es
+- Arnau Bigas:          arnau.bigas@bsc.es
+- Noelia Oliete-Escuín: noelia.oliete@bsc.es
+- Abbas Haghi:          abbas.hagh@bsc.es
+- Alireza Monemi:       alireza.monemi@bsc.es
+- César Fuguet:         cesar.fuguet@univ-grenoble-alpes.fr
+- Lluc Alvarez:         lluc.alvarez@bsc.es
