@@ -78,7 +78,7 @@ relation to the Work as if the Rights did not exist.
 
 APPENDIX
 
-Copyright 2023 BSC*
+Copyright 2025 BSC*
 *Barcelona Supercomputing Center (BSC)
 
 SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
