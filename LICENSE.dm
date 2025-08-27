@@ -1,3 +1,4 @@
+<span style="color:black">This text will be black</span>
 Solderpad Hardware License v2.1
 
 This license operates as a wraparound license to the Apache License
