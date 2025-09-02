@@ -18,7 +18,7 @@
  *  under the License.
  */
 /*
- *  Authors       : Riccardo Alidori, Cesar Fuguet
+ *  Authors       : Cesar Fuguet
  *  Creation Date : June, 2021
  *  Description   : Snooper used by the hardware memory prefetcher
  *  History       :
