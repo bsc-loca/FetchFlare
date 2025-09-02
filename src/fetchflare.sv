@@ -18,7 +18,7 @@
  *  under the License.
  */
 /*
- *  Authors       : Riccardo Alidori, Cesar Fuguet
+ *  Authors       : Golnaz Korkian, Cesar Fuguet
  *  Maintainers(s): Cesar Fuguet
  *  Creation Date : June, 2021
  *  Description   : HPDcache Linear Hardware Memory Prefetcher.
