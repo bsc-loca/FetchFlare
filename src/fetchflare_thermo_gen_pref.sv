@@ -1,5 +1,5 @@
-/*****************************************************
-Copyright 2025 BSC*
+/*
+ Copyright 2025 BSC*
 *Barcelona Supercomputing Center (BSC)
 
 SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
@@ -16,6 +16,13 @@ distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 License for the specific language governing permissions and limitations
 under the License.
+ */
+/*
+ *  Authors       : Alireza Monemi
+ *  Creation Date : September, 2023
+ *  Description   : Linear Hardware Memory Prefetcher wrapper.
+ *  History       :
+ */
 /*****************************************************
 *
 *    thermo_arbiter RRA
