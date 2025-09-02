@@ -18,7 +18,7 @@ License for the specific language governing permissions and limitations
 under the License.
  */
 /*
- *  Authors       : Golnaz Korkian (BSC), Cesar Fuguet
+ *  Authors       : Golnaz Korkian, Cesar Fuguet
  *  Creation Date : September, 2023
  *  Description   : Linear Hardware Memory Prefetcher wrapper.
  *  History       :
