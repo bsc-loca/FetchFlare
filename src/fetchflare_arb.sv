@@ -18,7 +18,7 @@
  *  under the License.
  */
 /*
- *  Author(s)     : Riccardo Alidori, Cesar Fuguet
+ *  Author(s)     : Cesar Fuguet
  *  Creation Date : June, 2021
  *  Description   : Hw prefetchers arbiter
  *  History       :
