@@ -30,7 +30,7 @@ under the License.
 /*************************************/
 
 
-module bram_based_fifo  #(
+module fetchflare_bram_based_fifo  #(
         parameter Dw = 160,//data_width
         parameter B  = 16// buffer num
         )(
