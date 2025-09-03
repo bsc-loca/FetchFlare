@@ -23,7 +23,7 @@ under the License.
  *  Description   : Linear Hardware Memory Prefetcher wrapper.
  *  History       :
  */
-module arbiter_pref #(
+module fetchflare_arbiter_pref #(
 parameter    ARBITER_WIDTH    = 4        
 )
 (    
