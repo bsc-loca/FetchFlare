@@ -24,7 +24,7 @@ under the License.
  *  History       :
  */
 module fetchflare_wrapper
-import hwpf_stride_pkg::*;
+import fetchflare_pkg::*;
 import hpdcache_pkg::*;
 
 //  Ports
