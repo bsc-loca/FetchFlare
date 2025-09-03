@@ -43,7 +43,7 @@ License for the specific language governing permissions and limitations
 under the License.
  */
 module fetchflare
-import hwpf_stride_pkg::*;
+import fetchflare_pkg::*;
 import hpdcache_pkg::*;
 //  Parameters
 //  {{{
