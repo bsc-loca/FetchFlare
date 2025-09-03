@@ -23,7 +23,7 @@ under the License.
  *  Description   : Linear Hardware Memory Prefetcher wrapper.
  *  History       :
  */
-module hwpf_stride_wrapper
+module fetchflare_wrapper
 import hwpf_stride_pkg::*;
 import hpdcache_pkg::*;
 
