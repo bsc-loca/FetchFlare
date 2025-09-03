@@ -24,7 +24,7 @@ under the License.
  *  History       :
  */
 
-package hwpf_stride_pkg;
+package fetchflare_pkg;
 import hpdcache_pkg::*;
 
     //  Base address configuration register of the hardware memory prefetcher
