@@ -23,7 +23,7 @@
  *  Description   : Hw prefetchers arbiter
  *  History       :
  */
-module hwpf_stride_arb
+module fetchflare_arb
 import hpdcache_pkg::*;
 #(
     parameter NUM_HW_PREFETCH = 4
