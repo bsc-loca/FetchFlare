@@ -29,7 +29,7 @@ under the License.
 *
 ******************************************************/
 
-module thermo_gen_pref #(
+module fetchflare_thermo_gen_pref #(
     parameter WIDTH=16
 
 
