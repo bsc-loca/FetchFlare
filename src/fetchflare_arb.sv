@@ -26,7 +26,10 @@
 module fetchflare_arb
 import hpdcache_pkg::*;
 #(
-    parameter NUM_HW_PREFETCH = 4
+    parameter int unsigned NUM_HW_PREFETCH = 4,
+
+    parameter type hpdcache_req_t = logic,
+    parameter type hpdcache_rsp_t = logic
 )(
     input  logic                                clk_i,
     input  logic                                rst_ni,

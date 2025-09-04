@@ -48,7 +48,14 @@ import hpdcache_pkg::*;
 //  Parameters
 //  {{{
 #(
-    parameter int CACHE_LINE_BYTES = 64
+    parameter int CACHE_LINE_BYTES = 64,
+
+    parameter type hpdcache_req_addr_t = logic,
+    parameter type hpdcache_nline_t = logic,
+    parameter type hpdcache_tag_t = logic,
+    parameter type hpdcache_req_offset_t = logic,
+    parameter type hpdcache_req_t = logic,
+    parameter type hpdcache_rsp_t = logic
 )
 //  }}}
 
@@ -86,8 +93,6 @@ import hpdcache_pkg::*;
 );
 //  }}}
 
-    import hpdcache_pkg::hpdcache_req_addr_t;
-
     //  Definition of constants
     //  {{{
     localparam int STRIDE_WIDTH     = $bits(csr_param_i.stride);
@@ -122,8 +127,7 @@ import hpdcache_pkg::*;
     hwpf_stride_param_t shadow_param_q, shadow_param_d;
     hwpf_stride_throttle_t csr_throttle_q;
     hwpf_stride_throttle_t shadow_throttle_q, shadow_throttle_d;
-    hpdcache_pkg::hpdcache_req_addr_t request_nline_q, request_nline_d;
-    hpdcache_set_t hpdcache_req_set;  
+    hpdcache_req_addr_t request_nline_q, request_nline_d;
     hpdcache_tag_t hpdcache_req_tag;
 
     logic csr_base_update;
@@ -141,16 +145,16 @@ import hpdcache_pkg::*;
 
     //  Dcache outputs
     //  {{{
-    assign hpdcache_req_o.addr_offset     = request_nline_q[HPDCACHE_OFFSET_WIDTH + HPDCACHE_SET_WIDTH - 1:0],                                                                       
+    assign hpdcache_req_o.addr_offset     = request_nline_q[$bits(hpdcache_req_offset_t) - 1:0],                                                                       
            hpdcache_req_o.wdata           = '0,
-           hpdcache_req_o.op              = HPDCACHE_REQ_CMO, 
+           hpdcache_req_o.op              = HPDCACHE_REQ_CMO_PREFETCH,
            hpdcache_req_o.be              = '1,
-           hpdcache_req_o.size            = HPDCACHE_REQ_CMO_PREFETCH,
+           hpdcache_req_o.size            = '0,
            hpdcache_req_o.sid             = '0, 
            hpdcache_req_o.tid             = '0, 
            hpdcache_req_o.need_rsp        = 1'b1,
            hpdcache_req_o.phys_indexed    = 1'b1,
-           hpdcache_req_o.addr_tag        = request_nline_q[HPDCACHE_PA_WIDTH - 1:HPDCACHE_OFFSET_WIDTH + HPDCACHE_SET_WIDTH],
+           hpdcache_req_o.addr_tag        = request_nline_q[$bits(hpdcache_req_addr_t) - 1:$bits(hpdcache_req_offset_t)],
            hpdcache_req_o.pma.uncacheable = 1'b0,
            hpdcache_req_o.pma.io          = 1'b0;
     //  }}}

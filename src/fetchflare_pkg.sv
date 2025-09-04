@@ -67,17 +67,6 @@ import hpdcache_pkg::*;
             } hwpf_stride_status_t;
     //  }}}
 
-    `define   PREFETCHER_TAG_SIZE     HPDCACHE_TAG_WIDTH          
-    `define   PREFETCHER_INDEX_SIZE   HPDCACHE_OFFSET_WIDTH + HPDCACHE_SET_WIDTH 
-
-    `ifndef NUM_HW_PREFETCH
-        `define   NUM_HW_PREFETCH            4
-    `endif
-
-    `ifndef NUM_SNOOP_PORTS
-        `define   NUM_SNOOP_PORTS            1
-    `endif
-
     `ifndef PREFETCHER_TABLE_SIZE
         `define   PREFETCHER_TABLE_SIZE     32
     `endif
@@ -97,26 +86,12 @@ import hpdcache_pkg::*;
                 HIT3 = 3'b100,
                 PREFETCHING = 3'b101
     }prefetching_mode_t;
-        
-        
 
-    typedef struct packed { 
-                logic                                                             valid;                    
-                logic                   [`PREFETCHER_TAG_SIZE - 1:0]              tag;
-                prefetching_mode_t                                                training_mode;
-                logic                   [`PREFETCHER_INDEX_SIZE -1 :0]            index; 
-                logic                   [`PREFETCHER_INDEX_SIZE -1 :0]            stride;
-                logic                   [LRU_size - 1:0]                          LRU_state;                                             
-    } prefethcing_table_entry_t;
-        
-        
-        
 //It acts as entry point to the queue, connecting the hardware prefetcher with the prefetching engine's register, 
-    typedef struct packed { 
+    typedef struct packed {
                 hwpf_stride_base_t              base;
                 hwpf_stride_param_t             param;
-                hwpf_stride_throttle_t          throttle;                                
-                
+                hwpf_stride_throttle_t          throttle;
     } prefethcing_engine_entry_t;
 
 endpackage

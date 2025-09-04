@@ -27,6 +27,35 @@ module fetchflare_wrapper
 import fetchflare_pkg::*;
 import hpdcache_pkg::*;
 
+//  Parameters
+//  {{{
+#(
+    parameter int unsigned NUM_HW_PREFETCH = 4,
+    parameter int unsigned NUM_SNOOP_PORTS = 1,
+    parameter int unsigned CACHE_LINE_BYTES = 64,
+
+    //  Request Interface Definitions
+    //  {{{
+    parameter type hpdcache_tag_t = logic,
+    parameter type hpdcache_req_offset_t = logic,
+    parameter type hpdcache_req_data_t = logic,
+    parameter type hpdcache_req_be_t = logic,
+    parameter type hpdcache_req_sid_t = logic,
+    parameter type hpdcache_req_tid_t = logic,
+    parameter type hpdcache_req_t = logic,
+    parameter type hpdcache_rsp_t = logic,
+    parameter type hpdcache_nline_t = logic,
+    parameter type hpdcache_set_t = logic,
+    //  }}}
+
+    localparam int unsigned INDEX_WIDTH = $bits(hpdcache_req_offset_t),
+    localparam int unsigned BLOCK_OFFSET_WIDTH = $clog2(64),
+    localparam int unsigned TAG_WIDTH = $bits(hpdcache_tag_t),
+    localparam int unsigned ADDR_WIDTH = INDEX_WIDTH + TAG_WIDTH,
+    localparam type hpdcache_req_addr_t = logic [INDEX_WIDTH+TAG_WIDTH-1 : 0]
+)
+//  }}}
+
 //  Ports
 //  {{{
 (
@@ -35,7 +64,7 @@ import hpdcache_pkg::*;
    
     //  CSR
     //  {{{
-    output hwpf_stride_base_t     [`NUM_HW_PREFETCH-1:0] hwpf_stride_base_o,
+    output hwpf_stride_base_t     [NUM_HW_PREFETCH-1:0]  hwpf_stride_base_o,
     input  logic                                         hpdc_valid_i,
     input  logic                  [15:0]                 hpdc_prefetcher_cachelines_i,          
     input  logic                  [15:0]                 hpdc_prefetcher_inflight_i,
@@ -46,8 +75,8 @@ import hpdcache_pkg::*;
 
     // Snooping
     //  {{{
-    input  logic                 [`NUM_SNOOP_PORTS-1:0] snoop_valid_i,
-    input  hpdcache_req_addr_t   [`NUM_SNOOP_PORTS-1:0] snoop_addr_i,   
+    input  logic                 [NUM_SNOOP_PORTS-1:0] snoop_valid_i,
+    input  hpdcache_req_addr_t   [NUM_SNOOP_PORTS-1:0] snoop_addr_i,   
    
 
     //  Dcache interface
@@ -62,61 +91,73 @@ import hpdcache_pkg::*;
 );
 //  }}}
 
-    //  Internal signals
+    //  Internal Types
     //  {{{
-    logic            [`NUM_HW_PREFETCH-1:0] hwpf_stride_enable;
-    logic            [`NUM_HW_PREFETCH-1:0] hwpf_stride_free;
-    logic            [`NUM_HW_PREFETCH-1:0] hwpf_stride_status_busy;
-    logic            [`NUM_HW_PREFETCH-1:0] hwpf_stride_status_free_idx;
-
-    logic            [`NUM_HW_PREFETCH-1:0] hwpf_snoop_match;      
-
-    logic            [`NUM_HW_PREFETCH-1:0] hwpf_stride_req_valid;
-    logic            [`NUM_HW_PREFETCH-1:0] hwpf_stride_req_ready;
-    hpdcache_req_t   [`NUM_HW_PREFETCH-1:0] hwpf_stride_req;
-
-    logic            [`NUM_HW_PREFETCH-1:0] hwpf_stride_arb_in_req_valid;
-    logic            [`NUM_HW_PREFETCH-1:0] hwpf_stride_arb_in_req_ready;
-    hpdcache_req_t   [`NUM_HW_PREFETCH-1:0] hwpf_stride_arb_in_req;
-    logic            [`NUM_HW_PREFETCH-1:0] hwpf_stride_arb_in_rsp_valid;
-    hpdcache_rsp_t   [`NUM_HW_PREFETCH-1:0] hwpf_stride_arb_in_rsp;
+    typedef struct packed {
+                logic                  valid;
+                hpdcache_tag_t         tag;
+                prefetching_mode_t     training_mode;
+                hpdcache_req_offset_t  index;
+                hpdcache_req_offset_t  stride;
+                logic [LRU_size - 1:0] LRU_state;
+    } prefethcing_table_entry_t;
     //  }}}
 
-    logic                 [`NUM_HW_PREFETCH-1:0] hwpf_stride_base_set_p, hwpf_stride_base_set_p_next; 
-    hwpf_stride_base_t    [`NUM_HW_PREFETCH-1:0] hwpf_stride_base_p, hwpf_stride_base_p_next;     
+    //  Internal signals
+    //  {{{
+    logic            [NUM_HW_PREFETCH-1:0] hwpf_stride_enable;
+    logic            [NUM_HW_PREFETCH-1:0] hwpf_stride_free;
+    logic            [NUM_HW_PREFETCH-1:0] hwpf_stride_status_busy;
+    logic            [NUM_HW_PREFETCH-1:0] hwpf_stride_status_free_idx;
+
+    logic            [NUM_HW_PREFETCH-1:0] hwpf_snoop_match;      
+
+    logic            [NUM_HW_PREFETCH-1:0] hwpf_stride_req_valid;
+    logic            [NUM_HW_PREFETCH-1:0] hwpf_stride_req_ready;
+    hpdcache_req_t   [NUM_HW_PREFETCH-1:0] hwpf_stride_req;
+
+    logic            [NUM_HW_PREFETCH-1:0] hwpf_stride_arb_in_req_valid;
+    logic            [NUM_HW_PREFETCH-1:0] hwpf_stride_arb_in_req_ready;
+    hpdcache_req_t   [NUM_HW_PREFETCH-1:0] hwpf_stride_arb_in_req;
+    logic            [NUM_HW_PREFETCH-1:0] hwpf_stride_arb_in_rsp_valid;
+    hpdcache_rsp_t   [NUM_HW_PREFETCH-1:0] hwpf_stride_arb_in_rsp;
+    //  }}}
+
+    logic                 [NUM_HW_PREFETCH-1:0] hwpf_stride_base_set_p, hwpf_stride_base_set_p_next; 
+    hwpf_stride_base_t    [NUM_HW_PREFETCH-1:0] hwpf_stride_base_p, hwpf_stride_base_p_next;     
     
-    logic                 [`NUM_HW_PREFETCH-1:0] hwpf_stride_param_set_p, hwpf_stride_param_set_p_next; 
-    hwpf_stride_param_t   [`NUM_HW_PREFETCH-1:0] hwpf_stride_param_p, hwpf_stride_param_p_next;     
+    logic                 [NUM_HW_PREFETCH-1:0] hwpf_stride_param_set_p, hwpf_stride_param_set_p_next; 
+    hwpf_stride_param_t   [NUM_HW_PREFETCH-1:0] hwpf_stride_param_p, hwpf_stride_param_p_next;     
     
-    logic                    [`NUM_HW_PREFETCH-1:0] hwpf_stride_throttle_set_p, hwpf_stride_throttle_set_p_next; 
-    hwpf_stride_throttle_t   [`NUM_HW_PREFETCH-1:0] hwpf_stride_throttle_p, hwpf_stride_throttle_p_next;     
-    hpdcache_nline_t         [`NUM_HW_PREFETCH-1:0] engines_monitor, engines_monitor_reg;
+    logic                    [NUM_HW_PREFETCH-1:0] hwpf_stride_throttle_set_p, hwpf_stride_throttle_set_p_next; 
+    hwpf_stride_throttle_t   [NUM_HW_PREFETCH-1:0] hwpf_stride_throttle_p, hwpf_stride_throttle_p_next;     
+    hpdcache_nline_t         [NUM_HW_PREFETCH-1:0] engines_monitor, engines_monitor_reg;
     
-    hwpf_stride_base_t     [`NUM_HW_PREFETCH-1:0] hwpf_stride_base;  
-    hwpf_stride_param_t    [`NUM_HW_PREFETCH-1:0] hwpf_stride_param; 
-    hwpf_stride_throttle_t [`NUM_HW_PREFETCH-1:0] hwpf_stride_throttle;
+    hwpf_stride_base_t     [NUM_HW_PREFETCH-1:0] hwpf_stride_base;  
+    hwpf_stride_param_t    [NUM_HW_PREFETCH-1:0] hwpf_stride_param; 
+    hwpf_stride_throttle_t [NUM_HW_PREFETCH-1:0] hwpf_stride_throttle;
     hwpf_stride_status_t                          hwpf_stride_status;
 
-    logic          [`NUM_HW_PREFETCH-1:0] arb_prf;
+    logic          [NUM_HW_PREFETCH-1:0] arb_prf;
     logic          sign_stride, sign_stride_input;
     
     //{{{
 
-    logic                  [`NUM_HW_PREFETCH-1:0] hwpf_stride_base_set_internal;     
-    hwpf_stride_base_t     [`NUM_HW_PREFETCH-1:0] hwpf_stride_base_internal;  
-    hwpf_stride_base_t     [`NUM_HW_PREFETCH-1:0] hwpf_stride_base_internal_monitor;         
+    logic                  [NUM_HW_PREFETCH-1:0] hwpf_stride_base_set_internal;     
+    hwpf_stride_base_t     [NUM_HW_PREFETCH-1:0] hwpf_stride_base_internal;  
+    hwpf_stride_base_t     [NUM_HW_PREFETCH-1:0] hwpf_stride_base_internal_monitor;         
     
-    logic                  [`NUM_HW_PREFETCH-1:0] hwpf_stride_param_set_internal; 
-    hwpf_stride_param_t    [`NUM_HW_PREFETCH-1:0] hwpf_stride_param_internal;        
+    logic                  [NUM_HW_PREFETCH-1:0] hwpf_stride_param_set_internal; 
+    hwpf_stride_param_t    [NUM_HW_PREFETCH-1:0] hwpf_stride_param_internal;        
     
-    logic                  [`NUM_HW_PREFETCH-1:0] hwpf_stride_throttle_set_internal;  
-    hwpf_stride_throttle_t [`NUM_HW_PREFETCH-1:0] hwpf_stride_throttle_internal;     
+    logic                  [NUM_HW_PREFETCH-1:0] hwpf_stride_throttle_set_internal;  
+    hwpf_stride_throttle_t [NUM_HW_PREFETCH-1:0] hwpf_stride_throttle_internal;     
 
     logic near_full;
     //}}}
 
-    localparam     [`PREFETCHER_INDEX_SIZE-1:0] PREF_INDEX = {{(`PREFETCHER_INDEX_SIZE){1'b0}}};
-    localparam     [HPDCACHE_PA_WIDTH-1:0 ] PREF_PA_INDEX = {{(HPDCACHE_PA_WIDTH-(`PREFETCHER_INDEX_SIZE)){1'b1}},PREF_INDEX}; 
+    localparam     [INDEX_WIDTH-1:0] PREF_INDEX = {{(INDEX_WIDTH){1'b0}}};
+    localparam     [ADDR_WIDTH-1:0 ] PREF_PA_INDEX = {{(ADDR_WIDTH-(INDEX_WIDTH)){1'b1}},PREF_INDEX}; 
      
     parameter int unsigned SIZE_TABLE = $clog2(`PREFETCHER_TABLE_SIZE);
 
@@ -133,7 +174,7 @@ import hpdcache_pkg::*;
     //  pragma translate_off
     initial
     begin
-        max_hwpf_stride_assert: assert (`NUM_HW_PREFETCH <= 16) else
+        max_hwpf_stride_assert: assert (NUM_HW_PREFETCH <= 16) else
                 $error("hwpf_stride: maximum number of HW prefetchers is 16");
     end
     //  pragma translate_on
@@ -169,7 +210,7 @@ end
     //  {{{
 always_comb begin: hwpf_stride_priority_encoder
     hwpf_stride_status_free_idx = '0;
-    for (int unsigned i = 0; i < `NUM_HW_PREFETCH; i++) begin
+    for (int unsigned i = 0; i < NUM_HW_PREFETCH; i++) begin
         if (hwpf_stride_free[i]) begin
             hwpf_stride_status_free_idx = i;
             break;
@@ -181,29 +222,29 @@ end
 //     Free flag of engines
     assign hwpf_stride_free            = ~(hwpf_stride_enable | hwpf_stride_status_busy); 
     //     Busy flags
-    assign hwpf_stride_status[63:32] = {{32-`NUM_HW_PREFETCH{1'b0}}, hwpf_stride_status_busy};
+    assign hwpf_stride_status[63:32] = {{32-NUM_HW_PREFETCH{1'b0}}, hwpf_stride_status_busy};
     //     Global free flag
     assign hwpf_stride_status[31]    = |hwpf_stride_free;
     //     Free Index
     assign hwpf_stride_status[30:16] = {11'b0, hwpf_stride_status_free_idx};
     //     Enable flags
-    assign hwpf_stride_status[15:0]  = {{16-`NUM_HW_PREFETCH{1'b0}}, hwpf_stride_enable};
+    assign hwpf_stride_status[15:0]  = {{16-NUM_HW_PREFETCH{1'b0}}, hwpf_stride_enable};
     //  }}}
 
 //    Calculating the number of the cachelines in each page memory
     logic [15:0]   num_cacheline_page; 
-    localparam HPDC_WORD_WIDTH_LOG2 = $clog2(HPDCACHE_WORD_WIDTH);
+    localparam HPDC_WORD_WIDTH_LOG2 = $clog2(CACHE_LINE_BYTES);
     assign num_cacheline_page = hpdc_prefetcher_page_size_r >> HPDC_WORD_WIDTH_LOG2;  
 
 
     prefethcing_table_entry_t  [`PREFETCHER_TABLE_SIZE-1:0]   prefetcher_lut,  prefetcher_lut_next; 
     prefethcing_engine_entry_t                                snooping_entry,  hwpf_fifo_out, temp_fifo_out;
     logic                                                     hwpf_fifo_write, hwpf_fifo_full, hwpf_fifo_empty;
-    logic [`NUM_HW_PREFETCH-1:0]               hwpf_fifo_read;
+    logic [NUM_HW_PREFETCH-1:0]               hwpf_fifo_read;
     logic [$clog2(`HPDC_PREFETCHER_FIFO)-1:0]  wraddr, rdaddr; 
 
     
-    logic   [`NUM_HW_PREFETCH - 1:0] request_enable; 
+    logic   [NUM_HW_PREFETCH - 1:0] request_enable; 
     logic   [SIZE_TABLE - 1:0]       matched_index; 
     logic                            matched_index_valid;         
     
@@ -241,7 +282,7 @@ always_comb   begin
     matched_index_valid = 0;
     matched_index = 0;
     for (int i = 0; i < `PREFETCHER_TABLE_SIZE ; i++ ) begin //Match Detection
-        if(snoop_valid_i && (prefetcher_lut[i].valid) && (prefetcher_lut[i].tag == snoop_addr_i[0][`PREFETCHER_TAG_SIZE + `PREFETCHER_INDEX_SIZE - 1 : `PREFETCHER_INDEX_SIZE])) begin 
+        if(snoop_valid_i && (prefetcher_lut[i].valid) && (prefetcher_lut[i].tag == snoop_addr_i[0][TAG_WIDTH + INDEX_WIDTH - 1 : INDEX_WIDTH])) begin 
            matched_index = i;                                                                                                                               
            matched_index_valid = 1'b1;   
            break;                        
@@ -254,7 +295,7 @@ always_comb   begin //Checking the Stride is positive or negative
     sign_stride = 0;
     for (int i = 0; i < `PREFETCHER_TABLE_SIZE ; i++ ) begin 
         if(snoop_valid_i && (prefetcher_lut[i].valid) && ((prefetcher_lut[i].training_mode == HIT3) || (prefetcher_lut[i].training_mode == PREFETCHING))) begin  
-            if (snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0] < prefetcher_lut[matched_index].index) 
+            if (snoop_addr_i[0][INDEX_WIDTH - 1:0] < prefetcher_lut[matched_index].index) 
                 sign_stride = 1'b1;
             break;
         end 
@@ -318,8 +359,8 @@ begin : Match
             prefetcher_lut_next[matched_index].LRU_state = '0; 
             case (current_training_mode)
                 INITIAL: begin
-                    prefetcher_lut_next[matched_index].stride = snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0] - prefetcher_lut[matched_index].index;
-                    prefetcher_lut_next[matched_index].index  = snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0];
+                    prefetcher_lut_next[matched_index].stride = snoop_addr_i[0][INDEX_WIDTH - 1:0] - prefetcher_lut[matched_index].index;
+                    prefetcher_lut_next[matched_index].index  = snoop_addr_i[0][INDEX_WIDTH - 1:0];
                     prefetcher_lut_next[matched_index].training_mode = STRIDE_DETECTION;
                     for (int k = 0; k < `PREFETCHER_TABLE_SIZE; k++) begin 
                         if (prefetcher_lut[k].LRU_state < prefetcher_lut[matched_index].LRU_state) begin
@@ -328,13 +369,13 @@ begin : Match
                     end 
                 end 
                 STRIDE_DETECTION: begin
-                    if (prefetcher_lut[matched_index].stride + prefetcher_lut[matched_index].index == snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0]) begin
-                        prefetcher_lut_next[matched_index].index = snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0];
+                    if (prefetcher_lut[matched_index].stride + prefetcher_lut[matched_index].index == snoop_addr_i[0][INDEX_WIDTH - 1:0]) begin
+                        prefetcher_lut_next[matched_index].index = snoop_addr_i[0][INDEX_WIDTH - 1:0];
                         prefetcher_lut_next[matched_index].training_mode = HIT1;
                     end 
                     else begin
-                        prefetcher_lut_next[matched_index].stride = snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0] - prefetcher_lut[matched_index].index;
-                        prefetcher_lut_next[matched_index].index = snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0];
+                        prefetcher_lut_next[matched_index].stride = snoop_addr_i[0][INDEX_WIDTH - 1:0] - prefetcher_lut[matched_index].index;
+                        prefetcher_lut_next[matched_index].index = snoop_addr_i[0][INDEX_WIDTH - 1:0];
                         prefetcher_lut_next[matched_index].training_mode = INITIAL;
                     end 
                     for (int k = 0; k < `PREFETCHER_TABLE_SIZE; k++) begin 
@@ -344,12 +385,12 @@ begin : Match
                     end 
                 end
                 HIT1: begin
-                    if (prefetcher_lut[matched_index].stride + prefetcher_lut[matched_index].index == snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0]) begin
-                        prefetcher_lut_next[matched_index].index = snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0];
+                    if (prefetcher_lut[matched_index].stride + prefetcher_lut[matched_index].index == snoop_addr_i[0][INDEX_WIDTH - 1:0]) begin
+                        prefetcher_lut_next[matched_index].index = snoop_addr_i[0][INDEX_WIDTH - 1:0];
                         prefetcher_lut_next[matched_index].training_mode = HIT2;
                     end else begin
-                        prefetcher_lut_next[matched_index].stride = snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0] - prefetcher_lut[matched_index].index;
-                        prefetcher_lut_next[matched_index].index  = snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0];
+                        prefetcher_lut_next[matched_index].stride = snoop_addr_i[0][INDEX_WIDTH - 1:0] - prefetcher_lut[matched_index].index;
+                        prefetcher_lut_next[matched_index].index  = snoop_addr_i[0][INDEX_WIDTH - 1:0];
                         prefetcher_lut_next[matched_index].training_mode = INITIAL;
                     end
                     for (int k = 0; k < `PREFETCHER_TABLE_SIZE; k++)  
@@ -357,12 +398,12 @@ begin : Match
                             prefetcher_lut_next[k].LRU_state++;
                 end
                 HIT2: begin
-                    if (prefetcher_lut[matched_index].stride + prefetcher_lut[matched_index].index == snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0]) begin
-                        prefetcher_lut_next[matched_index].index = snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0];
+                    if (prefetcher_lut[matched_index].stride + prefetcher_lut[matched_index].index == snoop_addr_i[0][INDEX_WIDTH - 1:0]) begin
+                        prefetcher_lut_next[matched_index].index = snoop_addr_i[0][INDEX_WIDTH - 1:0];
                         prefetcher_lut_next[matched_index].training_mode = HIT3;
                     end else begin
-                        prefetcher_lut_next[matched_index].stride = snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0] - prefetcher_lut[matched_index].index;
-                        prefetcher_lut_next[matched_index].index  = snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0];
+                        prefetcher_lut_next[matched_index].stride = snoop_addr_i[0][INDEX_WIDTH - 1:0] - prefetcher_lut[matched_index].index;
+                        prefetcher_lut_next[matched_index].index  = snoop_addr_i[0][INDEX_WIDTH - 1:0];
                         prefetcher_lut_next[matched_index].training_mode = INITIAL;
                     end
                     for (int k = 0; k < `PREFETCHER_TABLE_SIZE; k++)  
@@ -370,29 +411,29 @@ begin : Match
                             prefetcher_lut_next[k].LRU_state++;
                 end
                 HIT3: begin
-                    if (prefetcher_lut[matched_index].stride + prefetcher_lut[matched_index].index == snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0]) begin
-                        prefetcher_lut_next[matched_index].index = snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0];
+                    if (prefetcher_lut[matched_index].stride + prefetcher_lut[matched_index].index == snoop_addr_i[0][INDEX_WIDTH - 1:0]) begin
+                        prefetcher_lut_next[matched_index].index = snoop_addr_i[0][INDEX_WIDTH - 1:0];
                         prefetcher_lut_next[matched_index].training_mode = PREFETCHING;
                         if(~sign_stride) begin //Positive Strides
                             sign_stride_input = 1'b0;
-                            if((snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0] - prefetcher_lut[matched_index].index) < HPDCACHE_PA_WIDTH)
-                                prefetcher_lut_next[matched_index].stride = ((((prefetcher_lut[matched_index].stride >> HPDCACHE_OFFSET_WIDTH) + 1) << HPDCACHE_OFFSET_WIDTH ) - 1);
+                            if((snoop_addr_i[0][INDEX_WIDTH - 1:0] - prefetcher_lut[matched_index].index) < ADDR_WIDTH)
+                                prefetcher_lut_next[matched_index].stride = ((((prefetcher_lut[matched_index].stride >> BLOCK_OFFSET_WIDTH) + 1) << BLOCK_OFFSET_WIDTH ) - 1);
                             else
                                 prefetcher_lut_next[matched_index].stride = prefetcher_lut[matched_index].stride;
                             end
                         if(sign_stride) begin //Negative Strides
                             sign_stride_input = 1'b1;
-                            if((((snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0] - prefetcher_lut[matched_index].index) ^  {{(`PREFETCHER_INDEX_SIZE){1'b1}}}) + 1'b1) < HPDCACHE_PA_WIDTH) //Calculation two's complement
-                                prefetcher_lut_next[matched_index].stride = ((((((snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0] - 
-                                prefetcher_lut[matched_index].index) ^  {{(`PREFETCHER_INDEX_SIZE){1'b1}}}) + 1'b1) >> HPDCACHE_OFFSET_WIDTH) + 1) << HPDCACHE_OFFSET_WIDTH)  - 1;
+                            if((((snoop_addr_i[0][INDEX_WIDTH - 1:0] - prefetcher_lut[matched_index].index) ^  {{(INDEX_WIDTH){1'b1}}}) + 1'b1) < ADDR_WIDTH) //Calculation two's complement
+                                prefetcher_lut_next[matched_index].stride = ((((((snoop_addr_i[0][INDEX_WIDTH - 1:0] - 
+                                prefetcher_lut[matched_index].index) ^  {{(INDEX_WIDTH){1'b1}}}) + 1'b1) >> BLOCK_OFFSET_WIDTH) + 1) << BLOCK_OFFSET_WIDTH)  - 1;
                             else  
-                                prefetcher_lut_next[matched_index].stride = ((snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0] - 
-                                prefetcher_lut[matched_index].index) ^  {{(`PREFETCHER_INDEX_SIZE){1'b1}}}) + 1'b1;                                         
+                                prefetcher_lut_next[matched_index].stride = ((snoop_addr_i[0][INDEX_WIDTH - 1:0] - 
+                                prefetcher_lut[matched_index].index) ^  {{(INDEX_WIDTH){1'b1}}}) + 1'b1;                                         
                             end
                         end else begin                                                  
-                            prefetcher_lut_next[matched_index].index = snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0];
+                            prefetcher_lut_next[matched_index].index = snoop_addr_i[0][INDEX_WIDTH - 1:0];
                             prefetcher_lut_next[matched_index].training_mode = INITIAL;
-                            prefetcher_lut_next[matched_index].stride = snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0] - prefetcher_lut[matched_index].index;
+                            prefetcher_lut_next[matched_index].stride = snoop_addr_i[0][INDEX_WIDTH - 1:0] - prefetcher_lut[matched_index].index;
                         end 
                             for (int k = 0; k < `PREFETCHER_TABLE_SIZE; k++)  
                                 if (prefetcher_lut[k].LRU_state < prefetcher_lut[matched_index].LRU_state) 
@@ -400,20 +441,20 @@ begin : Match
                 end 
                 PREFETCHING: begin
                     hwpf_fifo_write = 1; 
-                    hwpf_stride_base_internal[0].base_cline = (snoop_addr_i[0][`PREFETCHER_TAG_SIZE + `PREFETCHER_INDEX_SIZE - 1 : 0] + prefetcher_lut[matched_index].stride) 
-                                                               & {{(HPDCACHE_PA_WIDTH-HPDCACHE_OFFSET_WIDTH){1'b1}},{{(HPDCACHE_OFFSET_WIDTH){1'b0}}}}; 
+                    hwpf_stride_base_internal[0].base_cline = (snoop_addr_i[0][TAG_WIDTH + INDEX_WIDTH - 1 : 0] + prefetcher_lut[matched_index].stride) 
+                                                               & {{(ADDR_WIDTH-BLOCK_OFFSET_WIDTH){1'b1}},{{(BLOCK_OFFSET_WIDTH){1'b0}}}}; 
                     //Calculating Cross Paging
                     if(hpdc_prefetcher_cachelines_r < (num_cacheline_page - 
-                        ((((snoop_addr_i[0][`PREFETCHER_TAG_SIZE + `PREFETCHER_INDEX_SIZE - 1 : 0] + prefetcher_lut[matched_index].stride) - 
-                        (snoop_addr_i[0][`PREFETCHER_TAG_SIZE + `PREFETCHER_INDEX_SIZE - 1 : 0] + prefetcher_lut[matched_index].stride)) & PREF_PA_INDEX) 
+                        ((((snoop_addr_i[0][TAG_WIDTH + INDEX_WIDTH - 1 : 0] + prefetcher_lut[matched_index].stride) - 
+                        (snoop_addr_i[0][TAG_WIDTH + INDEX_WIDTH - 1 : 0] + prefetcher_lut[matched_index].stride)) & PREF_PA_INDEX) 
                          >>  my_log2(prefetcher_lut[matched_index].stride))-1))
 
                         hwpf_stride_param_internal[0].nblocks = hpdc_prefetcher_cachelines_r;
 
                     else
 
-                        hwpf_stride_param_internal[0].nblocks = (num_cacheline_page - ((snoop_addr_i[0][`PREFETCHER_TAG_SIZE + `PREFETCHER_INDEX_SIZE - 1 : 0] + prefetcher_lut[matched_index].stride) - 
-                        ((snoop_addr_i[0][`PREFETCHER_TAG_SIZE + `PREFETCHER_INDEX_SIZE - 1 : 0] + prefetcher_lut[matched_index].stride) & 
+                        hwpf_stride_param_internal[0].nblocks = (num_cacheline_page - ((snoop_addr_i[0][TAG_WIDTH + INDEX_WIDTH - 1 : 0] + prefetcher_lut[matched_index].stride) - 
+                        ((snoop_addr_i[0][TAG_WIDTH + INDEX_WIDTH - 1 : 0] + prefetcher_lut[matched_index].stride) & 
                         (PREF_PA_INDEX)) >> my_log2(prefetcher_lut[matched_index].stride)))-1;
 
                     hwpf_stride_base_internal[0].cycle  = '0;
@@ -445,9 +486,9 @@ begin : Match
         //NO MATCH
         else if (fill_index_valid) begin //Find an Invalid Entry
             prefetcher_lut_next[fill_index].valid = '1;
-            prefetcher_lut_next[fill_index].tag = snoop_addr_i[0][`PREFETCHER_TAG_SIZE + `PREFETCHER_INDEX_SIZE - 1 : `PREFETCHER_INDEX_SIZE];           
+            prefetcher_lut_next[fill_index].tag = snoop_addr_i[0][TAG_WIDTH + INDEX_WIDTH - 1 : INDEX_WIDTH];           
             prefetcher_lut_next[fill_index].training_mode = INITIAL;
-            prefetcher_lut_next[fill_index].index = snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0];           
+            prefetcher_lut_next[fill_index].index = snoop_addr_i[0][INDEX_WIDTH - 1:0];           
             prefetcher_lut_next[fill_index].stride = '0;   
             prefetcher_lut_next[fill_index].LRU_state = '0; 
             for (int k = 0; k < `PREFETCHER_TABLE_SIZE ; k++)                                   
@@ -458,9 +499,9 @@ begin : Match
                 if(prefetcher_lut[i].LRU_state == '1)   begin  
                     prefetcher_lut_next[i].LRU_state = '0; 
                     prefetcher_lut_next[i].valid = '1;
-                    prefetcher_lut_next[i].tag = snoop_addr_i[0][`PREFETCHER_TAG_SIZE + `PREFETCHER_INDEX_SIZE - 1 : `PREFETCHER_INDEX_SIZE];
+                    prefetcher_lut_next[i].tag = snoop_addr_i[0][TAG_WIDTH + INDEX_WIDTH - 1 : INDEX_WIDTH];
                     prefetcher_lut_next[i].training_mode = INITIAL;
-                    prefetcher_lut_next[i].index = snoop_addr_i[0][`PREFETCHER_INDEX_SIZE - 1:0];
+                    prefetcher_lut_next[i].index = snoop_addr_i[0][INDEX_WIDTH - 1:0];
                     prefetcher_lut_next[i].stride = '0;
                     for (int k = 0; k < `PREFETCHER_TABLE_SIZE ; k++)                                   
                         if (prefetcher_lut[k].LRU_state < prefetcher_lut[replace_index].LRU_state)    
@@ -493,7 +534,7 @@ end
         .wr_ptr     (wraddr)
         );    
 `else
-    bram_based_fifo #(.Dw (160), .B(`HPDC_PREFETCHER_FIFO)) //If the FIFO is nearly full (when only fifo has one free space), throws away the first data from the FIFO.
+    fetchflare_bram_based_fifo #(.Dw (160), .B(`HPDC_PREFETCHER_FIFO)) //If the FIFO is nearly full (when only fifo has one free space), throws away the first data from the FIFO.
     fifo_1
         (  
         .din ({snooping_entry.base.base_cline, snooping_entry.base.unused, snooping_entry.base.cycle, snooping_entry.base.rearm,
@@ -518,13 +559,11 @@ end
 //*************************************************** QUEUE *******************************************************************************/
 //This part implements a quque for prefetching requests, it lands between snooping mechanism and prefetching engines.
 
-logic   [`NUM_HW_PREFETCH-1:0] hwpf_stride_selected;
+logic   [NUM_HW_PREFETCH-1:0] hwpf_stride_selected;
 
-arbiter_pref #(
- .ARBITER_WIDTH(`NUM_HW_PREFETCH)
-        
-)arb
-(    
+fetchflare_arbiter_pref #(
+    .ARBITER_WIDTH(NUM_HW_PREFETCH)
+) arb (
    .clk(clk_i), 
    .reset(~rst_ni), 
    .request(~hwpf_stride_status_busy), 
@@ -533,14 +572,14 @@ arbiter_pref #(
 );
 
 
-logic [`NUM_HW_PREFETCH-1:0] hwpf_fifo_read_f;
+logic [NUM_HW_PREFETCH-1:0] hwpf_fifo_read_f;
 always @(posedge clk_i) begin
     if(~rst_ni) hwpf_fifo_read_f<='0;
     else hwpf_fifo_read_f<=hwpf_fifo_read;
 end
 
 generate
-    for (genvar i = 0; i < `NUM_HW_PREFETCH; i++) begin
+    for (genvar i = 0; i < NUM_HW_PREFETCH; i++) begin
         always_comb   begin
             hwpf_fifo_read[i] =  '0;
             hwpf_stride_base_p[i] =  '0;
@@ -570,10 +609,16 @@ endgenerate
 //********************************************************* Hardware prefetcher engines ***********************************************************
     //  {{{
 generate
-    for (genvar i = 0; i < `NUM_HW_PREFETCH; i++) begin: Engine_Run
+    for (genvar i = 0; i < NUM_HW_PREFETCH; i++) begin: Engine_Run
         assign hwpf_stride_enable[i] = hwpf_stride_base_o[i].enable;  
-            hwpf_stride #(
-                .CACHE_LINE_BYTES   ( HPDCACHE_CL_WIDTH/8 )
+            fetchflare #(
+                .CACHE_LINE_BYTES   ( CACHE_LINE_BYTES ),
+                .hpdcache_req_addr_t(hpdcache_req_addr_t),
+                .hpdcache_nline_t(hpdcache_nline_t),
+                .hpdcache_tag_t(hpdcache_tag_t),
+                .hpdcache_req_offset_t(hpdcache_req_offset_t),
+                .hpdcache_req_t(hpdcache_req_t),
+                .hpdcache_rsp_t(hpdcache_rsp_t)
             ) hwpf_stride_i (
                 .clk_i,
                 .rst_ni              ( rst_ni & engine_rst_n ),
@@ -619,8 +664,10 @@ endgenerate
 ////****************************************************************************************************************************************************************
     //  Hardware prefetcher arbiter between engines
     //  {{{
-    hwpf_stride_arb #(
-        .NUM_HW_PREFETCH          ( `NUM_HW_PREFETCH )
+    fetchflare_arb #(
+        .NUM_HW_PREFETCH          ( NUM_HW_PREFETCH ),
+        .hpdcache_req_t(hpdcache_req_t),
+        .hpdcache_rsp_t(hpdcache_rsp_t)
     ) hwpf_stride_arb_i (
         .clk_i,
         .rst_ni,
@@ -640,4 +687,4 @@ endgenerate
 
     //  }}}
 
-endmodule :hwpf_stride_wrapper
+endmodule :fetchflare_wrapper

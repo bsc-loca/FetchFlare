@@ -49,7 +49,7 @@ parameter    ARBITER_WIDTH    = 4
 
 
 
-    thermo_gen_pref #(
+    fetchflare_thermo_gen_pref #(
         .WIDTH(ARBITER_WIDTH)
     ) tm1
     (
@@ -60,7 +60,7 @@ parameter    ARBITER_WIDTH    = 4
 
 
 
-    thermo_gen_pref #(
+    fetchflare_thermo_gen_pref #(
         .WIDTH(ARBITER_WIDTH)
     ) tm2
     (
